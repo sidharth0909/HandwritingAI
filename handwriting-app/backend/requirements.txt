@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pillow
+reportlab
+python-docx
+python-dotenv
+torch
+torchvision
+transformers>=4.40.0
+diffusers
+accelerate
+einops
+timm
+huggingface_hub
+aiofiles
+pdfplumber

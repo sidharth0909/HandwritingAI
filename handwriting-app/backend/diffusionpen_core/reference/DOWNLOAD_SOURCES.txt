@@ -1,0 +1,9 @@
+Requested GitHub paths (generate.py, model.py, dataset.py, utils.py) do not exist at repo root.
+Saved upstream equivalents from koninik/DiffusionPen (main branch):
+
+  generate.py  <- train.py (inference is train_mode=='sampling' in train.py; no separate generate.py)
+  model.py     <- unet.py (UNetModel class + forward)
+  dataset.py   <- utils/iam_dataset.py
+  utils.py     <- utils/auxilary_functions.py
+
+Files are unmodified copies from raw.githubusercontent.com.
