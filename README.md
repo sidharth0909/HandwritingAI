@@ -1,160 +1,193 @@
 # HandwritingAI
 
-Full-stack application that generates handwritten pages from user-provided style samples. The current release uses a **mock PIL pipeline** so upload, generation, preview, and PDF export work end-to-end before real model weights are integrated.
+Generate multi-page handwritten documents that match a user’s writing style. Upload pen-on-paper samples (or draw them), enter text, pick a model, and export PNG/PDF.
+
+The app ships with two working models:
+
+| Model | Backend id | Style input | Notes |
+|-------|------------|-------------|--------|
+| **DiffusionPen** | `diffusionpen` | 5–10 word samples (photo or canvas) | Latent diffusion + MobileNet style encoder (IAM) |
+| **Emuru** (CVPR 2025) | `wordstylist` | 1+ clear photos (zero-shot) | T5 + VAE; auto-crops a word from a page photo via OCR |
+
+> GANwriting is not in the active UI registry. Compare mode (`compare`) remains available via the API if both models are configured.
+
+---
 
 ## Stack
 
 | Layer | Technologies |
 |-------|----------------|
-| Frontend | React (Vite), TailwindCSS, fabric.js, react-dropzone, axios, zustand |
-| Backend | FastAPI, Pillow, ReportLab, python-docx, python-dotenv, torch |
+| Frontend | React 18 (Vite), Tailwind CSS, fabric.js, react-dropzone, axios, Zustand |
+| Backend | FastAPI, Pillow, ReportLab, python-docx, pdfplumber, PyTorch, transformers, diffusers, RapidOCR |
+| Inference | DiffusionPen (local weights) · Emuru via Hugging Face cache (`blowing-up-groundhogs/emuru`) |
 
-## Project structure
+---
+
+## Repository layout
 
 ```
-handwriting-app/
-├── frontend/src/components/   # Sidebar, Step1–4, UploadZone, DrawCanvas, PagePreview
-├── frontend/src/store/        # Zustand global state
-├── backend/routers/           # samples, generate, export
-├── backend/models/            # DiffusionPen, GANwriting, WordStylist (mock)
-├── backend/services/          # style_extractor, compositor, exporter
-├── backend/storage/           # In-memory job_store (TODO: Redis)
-├── backend/uploads/           # Runtime sample storage (gitignored)
-├── backend/outputs/           # Runtime generated PNGs (gitignored)
-└── docker-compose.yml
+DiffPen/                          # git root (GitHub: HandwritingAI)
+├── README.md
+├── .gitignore
+└── handwriting-app/
+    ├── frontend/                 # Vite React app (port 3000)
+    ├── backend/                  # FastAPI app (port 8080 recommended)
+    │   ├── models/               # DiffusionPen, WordStylist (Emuru)
+    │   ├── emuru_worker.py       # Emuru subprocess worker
+    │   ├── diffusionpen_core/    # Style encoder / UNet glue
+    │   ├── routers/              # samples, generate, export
+    │   ├── services/             # generation, compositor, exporter
+    │   ├── scripts/              # download_weights.py, setup helpers
+    │   ├── weights/              # gitignored — model checkpoints
+    │   ├── uploads/              # gitignored — session samples
+    │   └── outputs/              # gitignored — generated pages
+    ├── docker-compose.yml
+    └── .env.example
 ```
 
-## Run locally (without Docker)
+Large / local-only paths (weights, venvs, uploads, debug dumps) are listed in `.gitignore`.
 
-### Backend
+---
+
+## Quick start (local)
+
+### 1. Backend
 
 ```bash
-cd backend
+cd handwriting-app/backend
 python -m venv .venv
+
 # Windows
 .venv\Scripts\activate
-# macOS/Linux
+# macOS / Linux
 source .venv/bin/activate
 
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+# optional helper (installs torch stack if needed):
+# python setup_env.py
+
+uvicorn main:app --reload --port 8080
 ```
 
-API docs: http://localhost:8000/docs
+- API docs: http://127.0.0.1:8080/docs  
+- Health / models: http://127.0.0.1:8080/api/model-status  
 
-### Frontend
+### 2. Frontend
 
 ```bash
-cd frontend
+cd handwriting-app/frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000  
 
-## Run with Docker
+Vite proxies `/api` to `http://localhost:8080` by default (`VITE_API_URL`).
 
-```bash
-docker compose up --build
-```
+### 3. Download model weights (first time)
 
-- Frontend: http://localhost:3000  
-- Backend: http://localhost:8000  
-- Volumes: `backend/uploads`, `backend/outputs`
-
-## How the mock pipeline works
-
-1. **POST /api/samples** — Saves images to `uploads/{session_id}/`, runs `extract_style()` (256-zero embedding mock), stores style in `job_store`.
-2. **POST /api/generate** — Background task tokenizes text, calls `model.generate()` (PIL mock words with slanted serif glyphs), composes A4 pages (2480×3508), saves PNGs to `outputs/{job_id}/`.
-3. **GET /api/status/{job_id}** — Poll `{ status, progress, message }`.
-4. **GET /api/result/{job_id}** — Returns page URLs or compare map.
-5. **GET /api/file/{job_id}/{filename}** — Serves PNG files.
-6. **POST /api/export/pdf** — Builds multi-page PDF via ReportLab.
-
-## API summary
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/samples` | Multipart `files`, optional `session_id` |
-| POST | `/api/parse-doc` | Extract text from PDF/DOCX |
-| POST | `/api/generate` | `{ session_id, text, model, pages }` |
-| GET | `/api/status/{job_id}` | Job status |
-| GET | `/api/result/{job_id}` | Page URLs / compare map |
-| GET | `/api/file/{job_id}/{filename}` | PNG file |
-| POST | `/api/export/pdf` | `{ job_id, model? }` |
-
-Models: `diffusionpen`, `ganwriting`, `wordstylist`, or `compare`.
-
-## Plug in real model weights
-
-1. Implement `load()` and `generate()` in `backend/models/diffusionpen.py`, `ganwriting.py`, `wordstylist.py`.
-2. Replace mock logic in `backend/services/style_extractor.py` with a real encoder.
-3. Swap `backend/storage/job_store.py` for Redis — keep the same key structure (`style:{session_id}`, job dict fields).
-
-Look for `# TODO: Replace with real model inference` and `# TODO: Swap with Redis` in the codebase.
-
-## Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENV` | `local` | Environment name |
-| `UPLOAD_DIR` | `uploads` | Sample upload directory |
-| `OUTPUT_DIR` | `outputs` | Generated PNG directory |
-| `MAX_PAGES` | `10` | Max pages per job |
-| `VITE_API_URL` | `http://localhost:8000` | Frontend API base URL |
-| `DEVICE` | `cpu` | Set to `cuda` on a GPU server for faster inference |
-
-## Setting up real models
-
-### Step 1 — Environment
-
-From `handwriting-app/backend/`, activate the existing venv (do not create a new one):
-
-```bash
-# Windows
-.venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
-
-python setup_env.py
-```
-
-This installs CPU PyTorch (if needed), diffusers, transformers, and the rest of the backend stack.
-
-### Step 2 — Download weights
+From `handwriting-app/backend/` with the venv active:
 
 ```bash
 python scripts/download_weights.py
 ```
 
-Warning: total download is roughly **~5 GB** (DiffusionPen repo + filtered Stable Diffusion v1.5 components). Files are stored under `backend/weights/` and are gitignored.
+Expect several GB under `backend/weights/` (gitignored):
 
-### Step 3 — Run the backend
+- **DiffusionPen** — IAM checkpoint + VAE components  
+- **Emuru** — Hugging Face cache under `backend/weights/emuru/`
+
+---
+
+## App flow
+
+1. **Model** — Choose DiffusionPen or Emuru (changing model clears prior samples).  
+2. **Samples** — Upload (and optionally draw for DiffusionPen). Emuru expects clear pen-on-paper photos; one page photo is enough.  
+3. **Text** — Type or upload a PDF/DOCX/TXT; set page count; generate.  
+4. **Output** — Two-column view:
+   - Left: your samples, input text, **style source** (your style vs built-in Emuru sample), style crop, per-word source  
+   - Right: generated page(s), PNG/PDF download  
+
+Jobs are processed in the background. The UI polls `GET /api/status/{job_id}` every ~2s.
+
+---
+
+## Models in detail
+
+### DiffusionPen
+
+- Needs **5–10** single-word samples (upload or canvas).  
+- Style encoder aggregates sample images; generation uses latent diffusion.  
+- First generation loads weights into memory (slow once); later runs are faster.  
+- CPU: often **several minutes per page**. Set `DEVICE=cuda` for GPU.
+
+### Emuru (`wordstylist`)
+
+- Zero-shot: **1 clear photo** is enough (optional extras up to 5).  
+- Worker (`emuru_worker.py`) cleans notebook photos, OCRs word boxes (RapidOCR), crops a style word, and runs Emuru with matching `style_text`.  
+- If a word fails quality checks, that word may fall back to Emuru’s bundled `sample.png` — the output page reports **user / fallback / mixed**.  
+- Prefer dark ink on white paper. Canvas/digital scribbles usually fail.  
+- CPU: about **1–3 minutes** for a short phrase after model load.
+
+---
+
+## API summary
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/samples` | Multipart `files`; optional `session_id`, `model` (`wordstylist` → min 1 sample; else min 5) |
+| `POST` | `/api/parse-doc` | Extract text from `.pdf` / `.docx` / `.txt` |
+| `POST` | `/api/generate` | JSON `{ session_id, text, model, pages }` → `{ job_id }` |
+| `GET` | `/api/status/{job_id}` | `{ status, progress, message }` |
+| `GET` | `/api/result/{job_id}` | `{ pages, meta, … }` — `meta` includes style source info |
+| `GET` | `/api/file/{job_id}/{filename}` | Serve generated PNG (or `style_used.png`) |
+| `POST` | `/api/export/pdf` | Build PDF from a finished job |
+| `GET` | `/api/model-status` | Per-model `loaded` / `weights_exist` |
+
+Valid `model` values: `diffusionpen`, `wordstylist`, `compare`.
+
+---
+
+## Environment variables
+
+Copy `handwriting-app/.env.example` → `handwriting-app/backend/.env` (and adjust as needed).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENV` | `local` | Environment label |
+| `UPLOAD_DIR` | `uploads` | Sample storage |
+| `OUTPUT_DIR` | `outputs` | Generated pages |
+| `MAX_PAGES` | `10` | Cap on pages per job |
+| `DEVICE` | `cpu` | `cuda` for GPU inference |
+| `VITE_API_URL` | `http://localhost:8080` | Frontend → API base (Vite proxy / axios) |
+
+---
+
+## Docker
 
 ```bash
-uvicorn main:app --reload --port 8000
+cd handwriting-app
+docker compose up --build
 ```
 
-DiffusionPen **loads on the first generation request** (not at server startup). Watch the terminal for progress messages (`Loading VAE...`, etc.).
+Compose maps backend **8000** and frontend **3000**. For local non-Docker use, this project commonly runs the API on **8080** to match the Vite proxy — keep ports consistent with `VITE_API_URL`.
 
-### CPU inference time
+Volumes: `backend/uploads`, `backend/outputs`.
 
-On CPU, expect roughly **3–7 minutes per page** depending on text length and hardware. The UI polls job status every 2 seconds while waiting.
+---
 
-### GPU / cloud deployment
+## Tips & troubleshooting
 
-On a machine with CUDA, set in `backend/.env`:
+- **Only one uvicorn** on the API port. Two processes sharing `8080` drop in-memory jobs/styles and the UI looks “stuck.”  
+- After backend restart, **re-upload samples** (style store is in-memory).  
+- Emuru: use a real phone/scanner photo of handwriting, not blank or canvas-only strokes.  
+- Weights and venvs are **not** in git — every clone must run `pip install` + `download_weights.py`.  
+- Do not commit `backend/weights/`, `.venv/`, `uploads/`, or `outputs/`.
 
-```
-DEVICE=cuda
-```
+---
 
-Restart the backend. DiffusionPen reads `DEVICE` from the environment and moves models to GPU automatically.
+## License / credits
 
-### GANwriting and WordStylist
-
-Weights for these models are **not integrated yet**. They continue to use the enhanced PIL mock until their weight folders are added under `backend/weights/ganwriting/` and `backend/weights/wordstylist/`. The model selection screen shows a status badge per model (`Ready`, `Not loaded`, or `Weights missing`).
-
-### Model status API
-
-`GET /api/model-status` returns `loaded` and `weights_exist` for each model so the frontend can show readiness before you generate.
+- **DiffusionPen** — style-conditioned handwriting diffusion (IAM-oriented pipeline in this repo).  
+- **Emuru** — [blowing-up-groundhogs/emuru](https://huggingface.co/blowing-up-groundhogs/emuru) (CVPR 2025).  
+- App: HandwritingAI — see repository for license and contribution notes.
