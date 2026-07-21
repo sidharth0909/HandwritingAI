@@ -3,23 +3,33 @@ import { create } from 'zustand'
 export const MODELS = [
   {
     id: 'diffusionpen',
+    tag: 'DIFFUSION',
     name: 'DiffusionPen',
-    tag: 'Diffusion',
-    description: 'Best quality. Latent diffusion with style encoder.',
-  },
-  {
-    id: 'ganwriting',
-    name: 'GANwriting',
-    tag: 'GAN',
-    description: 'Faster generation. Good for quick drafts.',
+    description:
+      'Best quality. Latent diffusion with style encoder. Learns your exact handwriting from 5 samples.',
+    sampleMode: 'flexible',
+    minSamples: 5,
+    maxSamples: 10,
+    sampleHint:
+      'Upload or draw 5–10 word samples. Canvas drawings work well with this model.',
   },
   {
     id: 'wordstylist',
-    name: 'WordStylist',
-    tag: 'Diffusion',
-    description: 'High diversity and style variation.',
+    tag: 'AUTOREGRESSIVE',
+    name: 'Emuru',
+    description:
+      'CVPR 2025. T5 + VAE · zero-shot from one clear photo.',
+    sampleMode: 'photo',
+    minSamples: 1,
+    maxSamples: 5,
+    sampleHint:
+      'Zero-shot: one clear pen-on-paper photo is enough. A page with a few words is fine — we auto-crop a style word. Prefer dark ink on white; avoid blank canvas draws.',
   },
 ]
+
+export function getModelConfig(modelId) {
+  return MODELS.find((m) => m.id === modelId) || MODELS[0]
+}
 
 const useStore = create((set) => ({
   currentStep: 1,
@@ -34,6 +44,7 @@ const useStore = create((set) => ({
   jobProgress: 0,
   results: null,
   compareResults: null,
+  resultMeta: null,
   activeCompareModel: null,
   previewPage: 0,
   error: null,
@@ -48,10 +59,29 @@ const useStore = create((set) => ({
       jobProgress: 0,
       results: null,
       compareResults: null,
+      resultMeta: null,
       activeCompareModel: null,
       previewPage: 0,
     }),
-  setModel: (model) => set({ selectedModel: model }),
+  setModel: (model) =>
+    set((state) => {
+      if (model === state.selectedModel) return { selectedModel: model }
+      // Changing model invalidates prior samples/session
+      return {
+        selectedModel: model,
+        sampleFiles: [],
+        sessionId: null,
+        jobId: null,
+        jobStatus: null,
+        jobMessage: '',
+        jobProgress: 0,
+        results: null,
+        compareResults: null,
+        resultMeta: null,
+        activeCompareModel: null,
+        previewPage: 0,
+      }
+    }),
   setSamples: (files) => set({ sampleFiles: files }),
   setText: (text) => set({ inputText: text }),
   setPageCount: (n) => set({ pageCount: n }),
@@ -61,8 +91,8 @@ const useStore = create((set) => ({
       jobMessage: payload.message ?? '',
       jobProgress: payload.progress ?? 0,
     }),
-  setResults: (results, compareResults = null) =>
-    set({ results, compareResults, jobStatus: 'done' }),
+  setResults: (results, compareResults = null, resultMeta = null) =>
+    set({ results, compareResults, resultMeta, jobStatus: 'done' }),
   setActiveCompareModel: (model) => set({ activeCompareModel: model }),
   setPreviewPage: (page) => set({ previewPage: page }),
   setError: (error) => set({ error }),
@@ -80,6 +110,7 @@ const useStore = create((set) => ({
       jobProgress: 0,
       results: null,
       compareResults: null,
+      resultMeta: null,
       activeCompareModel: null,
       previewPage: 0,
       error: null,

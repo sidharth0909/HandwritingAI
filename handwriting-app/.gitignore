@@ -1,51 +1,108 @@
-# Python
+# ── Python ──────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*$py.class
 *.pyo
 *.pyd
 .Python
 *.egg-info/
+.eggs/
 dist/
 build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Virtual environments (large; recreate via requirements)
 .venv/
 venv/
 env/
+emuru_venv/
 
-# Environment variables
+# ── Secrets / env ───────────────────────────────────────
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+*.env.docker
 
-# Model weights (large files, never commit)
+# ── Model weights & checkpoints (~30GB+) ────────────────
 backend/weights/
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+**/*.bin
+**/*.onnx
+**/*.h5
+**/*.pb
 
-# Runtime folders
+# ── Runtime / generated data ────────────────────────────
 backend/uploads/
 backend/outputs/
-
-# Logs
+backend/tmp/
+backend/temp/
 *.log
 logs/
 
-# Node / React
+# ── Local experiments & debug dumps (do not ship) ───────
+backend/_debug*/
+backend/_emuru*/
+backend/_final_try/
+backend/_style_try/
+backend/_diffusionpen_src/
+backend/_diffusionpen_src/**
+backend/_debug_*.png
+backend/_eve_*.png
+backend/_hello_*.png
+backend/_raw_*.png
+backend/_proc_*.png
+backend/_page_*.png
+backend/_style_*.png
+backend/_*.png
+
+# Hugging Face / torch caches if ever placed under app
+backend/.cache/
+**/huggingface/
+**/.huggingface/
+
+# ── Node / React ────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/build/
+frontend/.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# OS
+# ── OS ──────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
+ehthumbs.db
 
-# IDE
+# ── IDE / editor ────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
-# Docker
-*.env.docker
-
-# Byte-compiled
-*.pyc
+# ── Misc large / useless ────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+*.mp4
+*.avi
+*.mov
+*.psd
+*.sketch

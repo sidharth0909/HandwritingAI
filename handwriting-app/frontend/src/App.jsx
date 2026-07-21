@@ -9,15 +9,15 @@ function StepRouter() {
   const step = useStore((s) => s.currentStep)
   switch (step) {
     case 1:
-      return <Step1Samples />
-    case 2:
-      return <Step2Text />
-    case 3:
       return <Step3Models />
+    case 2:
+      return <Step1Samples />
+    case 3:
+      return <Step2Text />
     case 4:
       return <Step4Output />
     default:
-      return <Step1Samples />
+      return <Step3Models />
   }
 }
 

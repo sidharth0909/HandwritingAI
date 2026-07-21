@@ -10,10 +10,11 @@ export function fileUrl(path) {
   return `${baseURL}${path}`
 }
 
-export async function uploadSamples(files, sessionId = null) {
+export async function uploadSamples(files, sessionId = null, model = null) {
   const form = new FormData()
   files.forEach((file) => form.append('files', file))
   if (sessionId) form.append('session_id', sessionId)
+  if (model) form.append('model', model)
   const { data } = await api.post('/api/samples', form)
   return data
 }

@@ -1,0 +1,13 @@
+# Repo-root ignores (git root is DiffPen/)
+.vscode/
+.idea/
+.cursor/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Never commit local secrets at repo root
+.env
+.env.*
+!.env.example

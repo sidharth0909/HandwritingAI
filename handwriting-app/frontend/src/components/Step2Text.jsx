@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { parseDocument } from '../api/client'
-import useStore from '../store/useStore'
+import { generateHandwriting, parseDocument } from '../api/client'
+import useStore, { getModelConfig } from '../store/useStore'
 import UploadZone from './UploadZone'
 
 const WORDS_PER_PAGE = 150
@@ -10,11 +10,25 @@ function wordCount(text) {
   return t ? t.split(/\s+/).length : 0
 }
 
+/** Step 3 — enter text and start generation with the chosen model. */
 export default function Step2Text() {
   const [tab, setTab] = useState('type')
   const [parsing, setParsing] = useState(false)
-  const { inputText, setText, pageCount, setPageCount, setStep, setError } = useStore()
+  const [loading, setLoading] = useState(false)
+  const {
+    inputText,
+    setText,
+    pageCount,
+    setPageCount,
+    setStep,
+    setError,
+    sessionId,
+    selectedModel,
+    setJobId,
+    updateJobStatus,
+  } = useStore()
 
+  const model = getModelConfig(selectedModel)
   const words = useMemo(() => wordCount(inputText), [inputText])
   const estimatedPages = useMemo(
     () => Math.max(1, Math.min(10, Math.ceil(words / WORDS_PER_PAGE) || 1)),
@@ -37,8 +51,35 @@ export default function Step2Text() {
     }
   }
 
+  const handleGenerate = async () => {
+    if (!sessionId) {
+      setError('Upload samples before generating.')
+      return
+    }
+    if (!inputText.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const { job_id } = await generateHandwriting({
+        session_id: sessionId,
+        text: inputText.trim(),
+        model: selectedModel,
+        pages: pageCount,
+      })
+      setJobId(job_id)
+      updateJobStatus({ status: 'pending', message: 'Queued', progress: 0 })
+      setStep(4)
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : 'Generation failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="step-panel">
+      <span className="section-label">Text for {model.name}</span>
       <div className="tabs">
         <button
           type="button"
@@ -112,13 +153,16 @@ export default function Step2Text() {
       </div>
 
       <div className="step-actions">
+        <button type="button" className="btn" onClick={() => setStep(2)}>
+          Back
+        </button>
         <button
           type="button"
           className="btn btn-primary"
-          disabled={!inputText.trim()}
-          onClick={() => setStep(3)}
+          disabled={!inputText.trim() || loading}
+          onClick={handleGenerate}
         >
-          Continue
+          {loading ? 'Starting...' : `Generate with ${model.name}`}
         </button>
       </div>
     </div>

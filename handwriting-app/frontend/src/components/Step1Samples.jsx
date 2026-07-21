@@ -1,11 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { uploadSamples } from '../api/client'
-import useStore from '../store/useStore'
+import useStore, { getModelConfig } from '../store/useStore'
 import DrawCanvas from './DrawCanvas'
 import UploadZone from './UploadZone'
-
-const MIN = 5
-const MAX = 10
 
 function ThumbnailRow({ files, onRemove }) {
   if (!files.length) return null
@@ -35,13 +32,30 @@ function ThumbnailRow({ files, onRemove }) {
   )
 }
 
+/** Step 2 — collect samples shaped for the selected model. */
 export default function Step1Samples() {
   const [tab, setTab] = useState('upload')
   const [uploading, setUploading] = useState(false)
-  const { sampleFiles, setSamples, setSessionId, setStep, setError } = useStore()
+  const {
+    sampleFiles,
+    setSamples,
+    setSessionId,
+    setStep,
+    setError,
+    selectedModel,
+  } = useStore()
+
+  const config = getModelConfig(selectedModel)
+  const minSamples = config.minSamples
+  const maxSamples = config.maxSamples
+  const allowDraw = config.sampleMode === 'flexible'
+
+  useEffect(() => {
+    if (!allowDraw && tab === 'draw') setTab('upload')
+  }, [allowDraw, tab])
 
   const addFiles = (incoming) => {
-    setSamples([...sampleFiles, ...incoming].slice(0, MAX))
+    setSamples([...sampleFiles, ...incoming].slice(0, maxSamples))
   }
 
   const removeFile = (index) => {
@@ -49,13 +63,13 @@ export default function Step1Samples() {
   }
 
   const handleUploadSamples = async () => {
-    if (sampleFiles.length < MIN) return
+    if (sampleFiles.length < minSamples) return
     setUploading(true)
     setError(null)
     try {
-      const data = await uploadSamples(sampleFiles)
+      const data = await uploadSamples(sampleFiles, null, selectedModel)
       setSessionId(data.session_id)
-      setStep(2)
+      setStep(3)
     } catch (err) {
       const detail = err.response?.data?.detail
       setError(typeof detail === 'string' ? detail : 'Failed to upload samples')
@@ -66,30 +80,51 @@ export default function Step1Samples() {
 
   return (
     <div className="step-panel">
-      <div className="tabs">
-        <button
-          type="button"
-          className={`tab-btn ${tab === 'upload' ? 'tab-btn--active' : ''}`}
-          onClick={() => setTab('upload')}
-        >
-          Upload
-        </button>
-        <button
-          type="button"
-          className={`tab-btn ${tab === 'draw' ? 'tab-btn--active' : ''}`}
-          onClick={() => setTab('draw')}
-        >
-          Draw
-        </button>
-      </div>
+      <span className="section-label">
+        Samples for {config.name}
+      </span>
+      <p className="body-secondary" style={{ marginBottom: 16 }}>
+        {config.sampleHint}
+      </p>
 
-      {tab === 'upload' ? (
+      {allowDraw ? (
+        <div className="tabs">
+          <button
+            type="button"
+            className={`tab-btn ${tab === 'upload' ? 'tab-btn--active' : ''}`}
+            onClick={() => setTab('upload')}
+          >
+            Upload
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${tab === 'draw' ? 'tab-btn--active' : ''}`}
+            onClick={() => setTab('draw')}
+          >
+            Draw
+          </button>
+        </div>
+      ) : (
+        <p className="helper-text" style={{ marginBottom: 12 }}>
+          Zero-shot: one clear photo is enough — a full page is fine; we auto-crop a word.
+        </p>
+      )}
+
+      {tab === 'upload' || !allowDraw ? (
         <UploadZone
           onFiles={addFiles}
           accept={{ 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] }}
-          title="Drop handwriting samples here"
-          subtitle="JPG, PNG accepted · 5 to 10 words"
-          maxFiles={MAX}
+          title={
+            allowDraw
+              ? 'Drop handwriting samples here'
+              : 'Drop pen-and-paper photos here'
+          }
+          subtitle={
+            allowDraw
+              ? `JPG, PNG accepted · ${minSamples} to ${maxSamples} words`
+              : `Clear photos · ${minSamples}${maxSamples > minSamples ? ` to ${maxSamples}` : ''} single-word image${minSamples === 1 && maxSamples === 1 ? '' : 's'}`
+          }
+          maxFiles={maxSamples}
         />
       ) : (
         <DrawCanvas onSave={(file) => addFiles([file])} />
@@ -97,21 +132,26 @@ export default function Step1Samples() {
 
       <ThumbnailRow files={sampleFiles} onRemove={removeFile} />
 
-      {sampleFiles.length < MIN && (
-        <p className="helper-text">Upload at least 5 word samples</p>
+      {sampleFiles.length < minSamples && (
+        <p className="helper-text">
+          Add at least {minSamples} word sample{minSamples !== 1 ? 's' : ''}
+        </p>
       )}
       <p className="body-secondary">
-        {sampleFiles.length} of {MAX} samples
+        {sampleFiles.length} of {maxSamples} samples
       </p>
 
       <div className="step-actions">
+        <button type="button" className="btn" onClick={() => setStep(1)}>
+          Back
+        </button>
         <button
           type="button"
           className="btn btn-primary"
-          disabled={sampleFiles.length < MIN || uploading}
+          disabled={sampleFiles.length < minSamples || uploading}
           onClick={handleUploadSamples}
         >
-          {uploading ? 'Uploading...' : 'Upload Samples'}
+          {uploading ? 'Uploading...' : 'Continue'}
         </button>
       </div>
     </div>

@@ -18,11 +18,24 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
 async def upload_samples(
     files: list[UploadFile] = File(...),
     session_id: str | None = Form(None),
+    model: str | None = Form(None),
 ):
-    if len(files) < 5:
-        raise HTTPException(status_code=400, detail="Upload at least 5 handwriting samples.")
-    if len(files) > 10:
-        raise HTTPException(status_code=400, detail="Maximum 10 samples allowed.")
+    # Emuru (wordstylist) is zero-shot — 1 style image is enough.
+    # DiffusionPen needs several samples for the style encoder.
+    is_emuru = (model or "").lower() in ("wordstylist", "emuru")
+    min_samples = 1 if is_emuru else 5
+    max_samples = 5 if is_emuru else 10
+
+    if len(files) < min_samples:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Upload at least {min_samples} handwriting sample{'s' if min_samples != 1 else ''}.",
+        )
+    if len(files) > max_samples:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {max_samples} samples allowed.",
+        )
 
     sid = session_id or str(uuid.uuid4())
     session_dir = UPLOAD_DIR / sid

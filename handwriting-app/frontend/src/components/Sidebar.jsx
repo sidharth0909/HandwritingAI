@@ -1,9 +1,9 @@
 import useStore, { MODELS } from '../store/useStore'
 
 const STEPS = [
-  { id: 1, label: 'Samples', subtitle: 'Upload or draw words' },
-  { id: 2, label: 'Text', subtitle: 'Content and pages' },
-  { id: 3, label: 'Model', subtitle: 'Choose generator' },
+  { id: 1, label: 'Model', subtitle: 'Choose generator' },
+  { id: 2, label: 'Samples', subtitle: 'Style reference images' },
+  { id: 3, label: 'Text', subtitle: 'Content and pages' },
   { id: 4, label: 'Output', subtitle: 'Preview and export' },
 ]
 
@@ -23,8 +23,8 @@ function CheckIcon() {
 
 function stepStatus(stepId, currentStep, store) {
   const done =
-    (stepId === 1 && store.sessionId) ||
-    (stepId === 2 && store.inputText.trim()) ||
+    (stepId === 1 && currentStep > 1) ||
+    (stepId === 2 && store.sessionId) ||
     (stepId === 3 && store.jobId) ||
     (stepId === 4 && store.jobStatus === 'done')
   if (stepId === currentStep) return 'active'
@@ -35,20 +35,19 @@ function stepStatus(stepId, currentStep, store) {
 
 function dynamicSubtitle(stepId, store) {
   if (stepId === 1) {
+    const m = MODELS.find((x) => x.id === store.selectedModel)
+    return m ? m.name : STEPS[0].subtitle
+  }
+  if (stepId === 2) {
     const n = store.sampleFiles.length
     if (store.sessionId) return 'Samples uploaded'
     if (n) return `${n} word${n !== 1 ? 's' : ''} added`
-    return STEPS[0].subtitle
-  }
-  if (stepId === 2) {
-    const words = store.inputText.trim().split(/\s+/).filter(Boolean).length
-    if (words) return `${words} words, ${store.pageCount} page(s)`
     return STEPS[1].subtitle
   }
   if (stepId === 3) {
-    if (store.selectedModel === 'compare') return 'Compare all models'
-    const m = MODELS.find((x) => x.id === store.selectedModel)
-    return m ? m.name : STEPS[2].subtitle
+    const words = store.inputText.trim().split(/\s+/).filter(Boolean).length
+    if (words) return `${words} words, ${store.pageCount} page(s)`
+    return STEPS[2].subtitle
   }
   if (stepId === 4) {
     if (store.jobStatus === 'done') return 'Ready to download'

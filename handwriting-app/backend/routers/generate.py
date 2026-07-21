@@ -27,7 +27,9 @@ EMA_CKPT = (
 
 
 def _weights_exist(model_name: str) -> bool:
-    folder = WEIGHTS_DIR / model_name
+    # Emuru (wordstylist) caches under weights/emuru
+    folder_name = "emuru" if model_name == "wordstylist" else model_name
+    folder = WEIGHTS_DIR / folder_name
     return folder.is_dir() and any(folder.iterdir())
 
 
@@ -80,11 +82,7 @@ async def debug_checkpoint():
 
 @router.get("/model-status")
 async def model_status():
-    return {
-        "diffusionpen": _model_status_entry("diffusionpen"),
-        "ganwriting": _model_status_entry("ganwriting"),
-        "wordstylist": _model_status_entry("wordstylist"),
-    }
+    return {name: _model_status_entry(name) for name in MODEL_REGISTRY}
 
 
 @router.post("/generate")
@@ -159,6 +157,7 @@ async def get_result(job_id: str):
             "compare": {
                 k: _file_urls(job_id, v) for k, v in compare_paths.items()
             },
+            "meta": job.get("meta") or {},
         }
 
     paths = job.get("output_paths", [])
@@ -166,6 +165,7 @@ async def get_result(job_id: str):
         "is_compare": False,
         "model": model,
         "pages": _file_urls(job_id, paths),
+        "meta": job.get("meta") or {},
     }
 
 

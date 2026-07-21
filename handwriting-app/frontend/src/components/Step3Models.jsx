@@ -1,16 +1,6 @@
 import { useEffect, useState } from 'react'
-import { api, generateHandwriting } from '../api/client'
+import { api } from '../api/client'
 import useStore, { MODELS } from '../store/useStore'
-
-function ColumnsIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <rect x="2" y="3" width="4" height="14" stroke="currentColor" strokeWidth="1" />
-      <rect x="8" y="3" width="4" height="14" stroke="currentColor" strokeWidth="1" />
-      <rect x="14" y="3" width="4" height="14" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  )
-}
 
 function ModelBadge({ loaded, weightsExist }) {
   let dotColor = 'var(--color-text-tertiary)'
@@ -50,22 +40,10 @@ function ModelBadge({ loaded, weightsExist }) {
   )
 }
 
+/** Step 1 — choose a single model before collecting samples. */
 export default function Step3Models() {
-  const [loading, setLoading] = useState(false)
   const [modelStatus, setModelStatus] = useState(null)
-  const {
-    sessionId,
-    inputText,
-    pageCount,
-    selectedModel,
-    setModel,
-    setJobId,
-    setStep,
-    setError,
-    updateJobStatus,
-  } = useStore()
-
-  const isCompare = selectedModel === 'compare'
+  const { selectedModel, setModel, setStep } = useStore()
 
   useEffect(() => {
     api
@@ -74,34 +52,14 @@ export default function Step3Models() {
       .catch(() => setModelStatus(null))
   }, [])
 
-  const handleGenerate = async () => {
-    if (!sessionId) {
-      setError('Upload samples before generating.')
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const { job_id } = await generateHandwriting({
-        session_id: sessionId,
-        text: inputText.trim(),
-        model: selectedModel,
-        pages: pageCount,
-      })
-      setJobId(job_id)
-      updateJobStatus({ status: 'pending', message: 'Queued', progress: 0 })
-      setStep(4)
-    } catch (err) {
-      const detail = err.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Generation failed')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const selected = MODELS.find((m) => m.id === selectedModel) || MODELS[0]
 
   return (
     <div className="step-panel">
-      <span className="section-label">Single model</span>
+      <span className="section-label">Choose a model</span>
+      <p className="body-secondary" style={{ marginBottom: 16 }}>
+        Sample requirements depend on the model you pick.
+      </p>
       <div className="model-grid">
         {MODELS.map((m) => {
           const status = modelStatus?.[m.id]
@@ -109,12 +67,15 @@ export default function Step3Models() {
             <button
               key={m.id}
               type="button"
-              className={`model-card ${!isCompare && selectedModel === m.id ? 'model-card--selected' : ''}`}
+              className={`model-card ${selectedModel === m.id ? 'model-card--selected' : ''}`}
               onClick={() => setModel(m.id)}
             >
               <span className="model-tag">{m.tag}</span>
               <span className="model-name">{m.name}</span>
               <span className="body-secondary">{m.description}</span>
+              <span className="body-secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                {m.sampleHint}
+              </span>
               {status && (
                 <ModelBadge
                   loaded={status.loaded}
@@ -126,31 +87,13 @@ export default function Step3Models() {
         })}
       </div>
 
-      <span className="section-label" style={{ marginTop: 20 }}>
-        Or compare all
-      </span>
-      <button
-        type="button"
-        className={`compare-card ${isCompare ? 'compare-card--selected' : ''}`}
-        onClick={() => setModel('compare')}
-      >
-        <ColumnsIcon />
-        <span>
-          <span className="model-name">Run all three side by side</span>
-          <span className="body-secondary block-mt">
-            Pick the best result after generation
-          </span>
-        </span>
-      </button>
-
       <div className="step-actions">
         <button
           type="button"
           className="btn btn-primary"
-          disabled={loading}
-          onClick={handleGenerate}
+          onClick={() => setStep(2)}
         >
-          {loading ? 'Starting...' : 'Generate'}
+          Continue with {selected.name}
         </button>
       </div>
     </div>

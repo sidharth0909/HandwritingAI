@@ -1,7 +1,5 @@
 """In-memory job and style storage for local development."""
 
-# TODO: Swap with Redis (redis-py) for cloud deployment. Keys and structure stay identical.
-
 jobs: dict = {}
 styles: dict = {}
 
